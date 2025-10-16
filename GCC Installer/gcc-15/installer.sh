@@ -25,7 +25,7 @@ COMPOMENTS_BISON_VERSION=3.8.2
 # binutils 2.40+ add --with-zstd=$INSTALL_PREFIX_PATH, maybe need env CXXFLAGS="-fpermissive"
 COMPOMENTS_BINUTILS_STAGE1_VERSION=2.41
 COMPOMENTS_BINUTILS_VERSION=2.44
-COMPOMENTS_OPENSSL_VERSION=3.3.0
+COMPOMENTS_OPENSSL_VERSION=3.5.1
 COMPOMENTS_ZLIB_VERSION=1.3.1
 COMPOMENTS_LIBFFI_VERSION=3.4.8
 COMPOMENTS_NCURSES_VERSION=6.5
@@ -34,14 +34,14 @@ COMPOMENTS_LIBXCRYPT_VERSION=4.4.38
 COMPOMENTS_GDBM_VERSION=latest
 COMPOMENTS_READLINE_VERSION=8.2
 # distcc 3.4 use distutils which is removed from python 3.12.2, we use python 3.11 by now
-COMPOMENTS_PYTHON_VERSION=3.13.3
-COMPOMENTS_GDB_VERSION=16.2 # Previous 15.2
+COMPOMENTS_PYTHON_VERSION=3.13.5
+COMPOMENTS_GDB_VERSION=16.3
 COMPOMENTS_GLOBAL_VERSION=6.6.14
 COMPOMENTS_LIBICONV_VERSION=1.18
 COMPOMENTS_XZ_VERSION=5.8.1
 COMPOMENTS_ZSTD_VERSION=1.5.7
 COMPOMENTS_LZ4_VERSION=1.10.0
-COMPOMENTS_MOLD_VERSION=2.38.1
+COMPOMENTS_MOLD_VERSION=2.40.1
 # 大多数发行版并没有开启 libssp , 开启会导致需要增加链接选项 -fstack-protector-all
 # 为了兼容性考虑我们默认也不开
 if [[ "x$COMPOMENTS_LIBSSP_ENABLE" == "x" ]]; then
@@ -1765,6 +1765,7 @@ build_libiconv "$PREFIX_DIR"
 build_mold "$PREFIX_DIR"
 
 # Switch linker to mold
+LDFLAGS_WITH_DEFAULT_LINKER="$LDFLAGS -B$PREFIX_DIR/bin"
 if [[ -e "$PREFIX_DIR/libexec/mold/ld" ]]; then
   export LDFLAGS="$LDFLAGS -fuse-ld=mold -B$PREFIX_DIR/libexec/mold -B$PREFIX_DIR/bin"
 else
@@ -1799,7 +1800,8 @@ export CXX=$PREFIX_DIR/bin/g++
 # openssl的依赖太广泛了，所以不放进默认的查找目录，以防外部使用者会使用到这里的版本。如果需要使用，可以手动导入这里的openssl
 if [[ -z "$BUILD_TARGET_COMPOMENTS" ]] || [[ "0" == $(is_in_list openssl $BUILD_TARGET_COMPOMENTS) ]]; then
   # OPENSSL_PKG=$(check_and_download "openssl" "openssl-$COMPOMENTS_OPENSSL_VERSION*.tar.gz" "https://www.openssl.org/source/openssl-$COMPOMENTS_OPENSSL_VERSION.tar.gz")
-  OPENSSL_PKG=$(check_and_download "openssl" "openssl-$COMPOMENTS_OPENSSL_VERSION*.tar.gz" "$REPOSITORY_MIRROR_URL_GITHUB/quictls/openssl/archive/refs/tags/openssl-$COMPOMENTS_OPENSSL_VERSION-quic1.tar.gz" "openssl-$COMPOMENTS_OPENSSL_VERSION-quic1.tar.gz")
+  # OPENSSL_PKG=$(check_and_download "openssl" "openssl-$COMPOMENTS_OPENSSL_VERSION*.tar.gz" "$REPOSITORY_MIRROR_URL_GITHUB/quictls/openssl/archive/refs/tags/openssl-$COMPOMENTS_OPENSSL_VERSION-quic1.tar.gz" "openssl-$COMPOMENTS_OPENSSL_VERSION-quic1.tar.gz")
+  OPENSSL_PKG=$(check_and_download "openssl" "openssl-$COMPOMENTS_OPENSSL_VERSION*.tar.gz" "$REPOSITORY_MIRROR_URL_GITHUB/openssl/openssl/releases/download/openssl-$COMPOMENTS_OPENSSL_VERSION/openssl-$COMPOMENTS_OPENSSL_VERSION.tar.gz" "openssl-$COMPOMENTS_OPENSSL_VERSION.tar.gz")
   if [[ $? -ne 0 ]]; then
     echo -e "$OPENSSL_PKG"
     exit 1
@@ -1875,6 +1877,7 @@ fi
 
 # Add rpath of internal-packages
 export LDFLAGS="$LDFLAGS -Wl,-rpath=\$ORIGIN/../internal-packages/lib64:\$ORIGIN/../internal-packages/lib:$PREFIX_DIR/internal-packages/lib64:$PREFIX_DIR/internal-packages/lib"
+export LDFLAGS_WITH_DEFAULT_LINKER="$LDFLAGS_WITH_DEFAULT_LINKER -Wl,-rpath=\$ORIGIN/../internal-packages/lib64:\$ORIGIN/../internal-packages/lib:$PREFIX_DIR/internal-packages/lib64:$PREFIX_DIR/internal-packages/lib"
 
 # ======================= install libffi [后面有些组件依赖] =======================
 if [[ -z "$BUILD_TARGET_COMPOMENTS" ]] || [[ "0" == $(is_in_list libffi $BUILD_TARGET_COMPOMENTS) ]]; then
@@ -1931,7 +1934,7 @@ function build_ncurses() {
       # Pyhton require shared libraries
       # expected --with-xterm-kbs=DEL for linux-gnu
       env LDFLAGS="${LDFLAGS//\$/\$\$}" CFLAGS="-fPIC ${CFLAGS}" CXXFLAGS="-fPIC ${CXXFLAGS}" ./configure "--prefix=$INSTALL_PREFIX_PATH" "--with-pkg-config-libdir=$INSTALL_PREFIX_PATH/lib/pkgconfig" \
-        --with-normal --without-debug --without-ada --with-termlib --enable-termcap \
+        --with-normal --without-debug --without-ada --with-termlib --with-bool=bool --enable-termcap \
         --disable-widec --enable-pc-files --with-cxx-binding --with-shared --with-cxx-shared \
         --enable-ext-colors --enable-ext-mouse --enable-bsdpad --enable-opaque-curses \
         --with-xterm-kbs=DEL \
@@ -1949,7 +1952,7 @@ function build_ncurses() {
       # Pyhton require shared libraries
       # expected --with-xterm-kbs=DEL for linux-gnu
       env LDFLAGS="${LDFLAGS//\$/\$\$}" CFLAGS="-fPIC ${CFLAGS}" CXXFLAGS="-fPIC ${CXXFLAGS}" ./configure "--prefix=$INSTALL_PREFIX_PATH" "--with-pkg-config-libdir=$INSTALL_PREFIX_PATH/lib/pkgconfig" \
-        --with-normal --without-debug --without-ada --with-termlib --enable-termcap \
+        --with-normal --without-debug --without-ada --with-termlib --with-bool=bool --enable-termcap \
         --enable-widec --enable-pc-files --with-cxx-binding --with-shared --with-cxx-shared \
         --enable-ext-colors --enable-ext-mouse --enable-bsdpad --enable-opaque-curses \
         --with-xterm-kbs=DEL \
@@ -1970,6 +1973,19 @@ build_ncurses "$PREFIX_DIR"
 if [[ $? -ne 0 ]]; then
   echo -e "\\033[31;1mError: Build ncurses failed.\\033[39;49;0m"
   exit 1
+fi
+
+# ------------------------ patch for global 6.6.5/Python linking error ------------------------
+echo "int main() { return 0; }" | gcc -x c -ltinfow -o /dev/null - 2>/dev/null
+if [[ $? -eq 0 ]]; then
+  BUILD_TARGET_COMPOMENTS_PATCH_TINFO="-ltinfo -ltinfow"
+else
+  echo "int main() { return 0; }" | gcc -x c -ltinfo -o /dev/null - 2>/dev/null
+  if [[ $? -eq 0 ]]; then
+    BUILD_TARGET_COMPOMENTS_PATCH_TINFO="-ltinfo"
+  else
+    BUILD_TARGET_COMPOMENTS_PATCH_TINFO=0
+  fi
 fi
 
 if [[ -z "$BUILD_TARGET_COMPOMENTS" ]] || [[ "0" == $(is_in_list libexpat $BUILD_TARGET_COMPOMENTS) ]]; then
@@ -2037,7 +2053,11 @@ if [[ -z "$BUILD_TARGET_COMPOMENTS" ]] || [[ "0" == $(is_in_list gdbm $BUILD_TAR
     cleanup_configure_cache
 
     # add -fcommon to solve multiple definition of `parseopt_program_args'
-    env CFLAGS="$CFLAGS -fcommon" LDFLAGS="${LDFLAGS//\$/\$\$}" ./configure "--prefix=$PREFIX_DIR" --with-pic=yes --enable-libgdbm-compat
+    if [[ "$BUILD_TARGET_COMPOMENTS_PATCH_TINFO" != "0" ]]; then
+      env "LIBS=$LIBS $BUILD_TARGET_COMPOMENTS_PATCH_TINFO" CFLAGS="$CFLAGS -fcommon" LDFLAGS="${LDFLAGS//\$/\$\$}" ./configure "--prefix=$PREFIX_DIR" --with-pic=yes --enable-libgdbm-compat
+    else
+      env CFLAGS="$CFLAGS -fcommon" LDFLAGS="${LDFLAGS//\$/\$\$}" ./configure "--prefix=$PREFIX_DIR" --with-pic=yes --enable-libgdbm-compat
+    fi
     make $BUILD_THREAD_OPT || make
     if [[ $? -ne 0 ]]; then
       echo -e "\\033[31;1mError: Build gdbm failed.\\033[39;49;0m"
@@ -2061,14 +2081,19 @@ if [[ -z "$BUILD_TARGET_COMPOMENTS" ]] || [[ "0" == $(is_in_list readline $BUILD
     cd "$READLINE_DIR"
     cleanup_configure_cache
 
-    env LDFLAGS="${LDFLAGS//\$/\$\$} -static" CFLAGS="${CFLAGS} -fPIC" ./configure "--prefix=$PREFIX_DIR" --with-pic=yes --enable-static=yes --enable-shared=no \
-      --enable-multibyte --with-curses
-    env LDFLAGS="${LDFLAGS//\$/\$\$} -static" CFLAGS="${CFLAGS} -fPIC" make $BUILD_THREAD_OPT || env LDFLAGS="${LDFLAGS//\$/\$\$} -static" CFLAGS="${CFLAGS} -fPIC" make
+    if [[ "$BUILD_TARGET_COMPOMENTS_PATCH_TINFO" != "0" ]]; then
+      env "LIBS=$LIBS $BUILD_TARGET_COMPOMENTS_PATCH_TINFO" LDFLAGS="${LDFLAGS_WITH_DEFAULT_LINKER//\$/\$\$} -static" CFLAGS="${CFLAGS} -fPIC" ./configure "--prefix=$PREFIX_DIR" --with-pic=yes --enable-static=yes --enable-shared=no \
+        --enable-multibyte --with-curses
+    else
+      env LDFLAGS="${LDFLAGS_WITH_DEFAULT_LINKER//\$/\$\$} -static" CFLAGS="${CFLAGS} -fPIC" ./configure "--prefix=$PREFIX_DIR" --with-pic=yes --enable-static=yes --enable-shared=no \
+        --enable-multibyte --with-curses
+    fi
+    env LDFLAGS="${LDFLAGS_WITH_DEFAULT_LINKER//\$/\$\$} -static" CFLAGS="${CFLAGS} -fPIC" make $BUILD_THREAD_OPT || env LDFLAGS="${LDFLAGS_WITH_DEFAULT_LINKER//\$/\$\$} -static" CFLAGS="${CFLAGS} -fPIC" make
     if [[ $? -ne 0 ]]; then
       echo -e "\\033[31;1mError: Build readline failed.\\033[39;49;0m"
       exit 1
     fi
-    env LDFLAGS="${LDFLAGS//\$/\$\$} -static" make install
+    env LDFLAGS="${LDFLAGS_WITH_DEFAULT_LINKER//\$/\$\$} -static" make install
 
     cd "$WORKING_DIR"
   fi
@@ -2076,19 +2101,6 @@ fi
 
 # bootstrap bison, because it may depend on readline and libiconv
 build_bison "$PREFIX_DIR"
-
-# ------------------------ patch for global 6.6.5/Python linking error ------------------------
-echo "int main() { return 0; }" | gcc -x c -ltinfow -o /dev/null - 2>/dev/null
-if [[ $? -eq 0 ]]; then
-  BUILD_TARGET_COMPOMENTS_PATCH_TINFO="-ltinfo -ltinfow"
-else
-  echo "int main() { return 0; }" | gcc -x c -ltinfo -o /dev/null - 2>/dev/null
-  if [[ $? -eq 0 ]]; then
-    BUILD_TARGET_COMPOMENTS_PATCH_TINFO="-ltinfo"
-  else
-    BUILD_TARGET_COMPOMENTS_PATCH_TINFO=0
-  fi
-fi
 
 # ======================= install gdb =======================
 function build_python() {
